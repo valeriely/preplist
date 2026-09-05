@@ -88,6 +88,8 @@ export interface WeekPlan {
   hiddenItemIds: string[]
   checkedKeys: string[]
   notes?: Record<string, string>
+  /** Finished pot weight in grams, keyed by dish id. */
+  cookedGrams?: Record<string, number>
 }
 
 /** A week you can reopen. Edits to the open week save back into it. */

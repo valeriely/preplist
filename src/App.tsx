@@ -119,6 +119,13 @@ export default function App() {
     setPlan({ ...plan, notes: { ...(plan.notes ?? {}), [dishId]: note } })
   }
 
+  function setCookedGrams(dishId: string, grams: number | null) {
+    const next = { ...(plan.cookedGrams ?? {}) }
+    if (grams == null) delete next[dishId]
+    else next[dishId] = grams
+    setPlan({ ...plan, cookedGrams: next })
+  }
+
   function hideItem(itemId: string) {
     if (plan.hiddenItemIds.includes(itemId)) return
     setPlan({ ...plan, hiddenItemIds: [...plan.hiddenItemIds, itemId] })
@@ -223,8 +230,10 @@ export default function App() {
           entries={plan.entries}
           openDishId={openCookId}
           notes={plan.notes ?? {}}
+          cookedGrams={plan.cookedGrams ?? {}}
           onOpen={setOpenCookId}
           onNote={setNote}
+          onCookedGrams={setCookedGrams}
         />
       )}
       {tab === 'weeks' && (

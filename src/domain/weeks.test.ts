@@ -164,6 +164,16 @@ describe('normalizePlan', () => {
     const plan = normalizePlan({ schemaVersion: 1, entries: [{ dishId: 'a', portions: 2 }] })
     expect(plan.hiddenItemIds).toEqual([])
     expect(plan.checkedKeys).toEqual([])
+    expect(plan.cookedGrams).toBeUndefined()
+  })
+
+  it('keeps a positive cooked pot weight and drops junk', () => {
+    const plan = normalizePlan({
+      schemaVersion: 1,
+      entries: [{ dishId: 'a', portions: 2 }],
+      cookedGrams: { a: 640.2, b: -3, c: 'nope' },
+    })
+    expect(plan.cookedGrams).toEqual({ a: 640 })
   })
 
   it('drops junk entries and survives rubbish input', () => {

@@ -1,4 +1,5 @@
 import { ARCHETYPE_LABEL, archetypeFor, cookSteps, methodLabel, rolesFor } from '../domain/cookPlan'
+import { batchKcal, cookedPortion, kcalPerPax, parseCookedGrams } from '../domain/nutrition'
 import { formatQuantity, resolveDish } from '../domain/tally'
 import { PROTEIN_TAG_LABEL } from '../domain/normalize'
 import { TimeIcon } from '../components/icons'
@@ -9,8 +10,10 @@ interface Props {
   entries: PlanEntry[]
   openDishId: string | null
   notes: Record<string, string>
+  cookedGrams: Record<string, number>
   onOpen: (dishId: string | null) => void
   onNote: (dishId: string, note: string) => void
+  onCookedGrams: (dishId: string, grams: number | null) => void
 }
 
 export default function CookPage({
@@ -18,8 +21,10 @@ export default function CookPage({
   entries,
   openDishId,
   notes,
+  cookedGrams,
   onOpen,
   onNote,
+  onCookedGrams,
 }: Props) {
   const byId = new Map(dishes.map((d) => [d.id, d]))
   const planned = entries
@@ -40,8 +45,10 @@ export default function CookPage({
         dish={open.dish}
         entry={open.entry}
         note={notes[open.dish.id] ?? ''}
+        cookedGrams={cookedGrams[open.dish.id] ?? null}
         onBack={() => onOpen(null)}
         onNote={(value) => onNote(open.dish.id, value)}
+        onCookedGrams={(grams) => onCookedGrams(open.dish.id, grams)}
       />
     )
   }
@@ -56,33 +63,38 @@ export default function CookPage({
         Tap a dish for a rough method built from its kit details.
       </p>
       <div className="grid">
-        {planned.map(({ dish, entry }) => (
-          <button
-            key={dish.id}
-            type="button"
-            className="dish cook-tile"
-            onClick={() => onOpen(dish.id)}
-          >
-            <div className="dish-photo">
-              {dish.thumb && <img src={dish.thumb} alt="" loading="lazy" decoding="async" />}
-              <div className="dish-tags">
-                <span className="tag">{methodLabel(dish)}</span>
-              </div>
-              <div className="dish-photo-meta">
-                <div className="dish-name">{dish.name}</div>
-                <div className="dish-sub">
-                  {entry.portions} pax · {dish.time || 'time on the card'}
+        {planned.map(({ dish, entry }) => {
+          const perPax = kcalPerPax(dish)
+          return (
+            <button
+              key={dish.id}
+              type="button"
+              className="dish cook-tile"
+              onClick={() => onOpen(dish.id)}
+            >
+              <div className="dish-photo">
+                {dish.thumb && <img src={dish.thumb} alt="" loading="lazy" decoding="async" />}
+                <div className="dish-tags">
+                  <span className="tag">{methodLabel(dish)}</span>
+                </div>
+                <div className="dish-photo-meta">
+                  <div className="dish-name">{dish.name}</div>
+                  <div className="dish-sub">
+                    {entry.portions} pax
+                    {perPax != null ? ` · ${perPax} kcal / pax` : ''}
+                    {dish.time ? ` · ${dish.time}` : ''}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="dish-body">
-              <span className="cook-cta">
-                {cookSteps(dish).length} steps
-                {dish.effortHats ? ` · ${'▲'.repeat(dish.effortHats)} effort` : ''}
-              </span>
-            </div>
-          </button>
-        ))}
+              <div className="dish-body">
+                <span className="cook-cta">
+                  {cookSteps(dish).length} steps
+                  {dish.effortHats ? ` · ${'▲'.repeat(dish.effortHats)} effort` : ''}
+                </span>
+              </div>
+            </button>
+          )
+        })}
       </div>
     </>
   )
@@ -92,19 +104,26 @@ function CookDetail({
   dish,
   entry,
   note,
+  cookedGrams,
   onBack,
   onNote,
+  onCookedGrams,
 }: {
   dish: Dish
   entry: PlanEntry
   note: string
+  cookedGrams: number | null
   onBack: () => void
   onNote: (value: string) => void
+  onCookedGrams: (grams: number | null) => void
 }) {
   const resolved = resolveDish(dish, entry)
   const steps = cookSteps(resolved)
   const roles = rolesFor(resolved)
   const fresh = resolved.ingredients.filter((i) => i.kind === 'fresh')
+  const perPax = kcalPerPax(dish)
+  const batch = batchKcal(dish, entry.portions)
+  const portion = cookedGrams != null ? cookedPortion(dish, entry.portions, cookedGrams) : null
 
   return (
     <>
@@ -124,7 +143,8 @@ function CookDetail({
             </span>
             <span>{methodLabel(dish)}</span>
             <span>{entry.portions} pax</span>
-            {dish.calories && <span>{dish.calories}</span>}
+            {perPax != null && <span>{perPax} kcal / 1 pax</span>}
+            {batch != null && entry.portions !== 1 && <span>{batch} kcal for {entry.portions} pax</span>}
           </div>
         </div>
       </section>
@@ -199,6 +219,54 @@ function CookDetail({
           of the week.
         </p>
       )}
+
+      <div className="group-label">Portion</div>
+      <div className="portion-card">
+        {perPax != null ? (
+          <p className="portion-kcal">
+            <strong>{perPax} kcal</strong> / 1 pax
+            {batch != null && entry.portions !== 1 && (
+              <>
+                {' '}
+                · <strong>{batch} kcal</strong> for this {entry.portions} pax cook
+              </>
+            )}
+          </p>
+        ) : (
+          <p className="item-sub">This kit has no calorie figure. You can still weigh the pot to split it evenly.</p>
+        )}
+        <label className="portion-weigh">
+          <span>Weigh the whole cooked dish</span>
+          <span className="portion-weigh-field">
+            <input
+              type="number"
+              inputMode="decimal"
+              min="1"
+              step="1"
+              placeholder="e.g. 640"
+              value={cookedGrams ?? ''}
+              onChange={(e) => onCookedGrams(parseCookedGrams(e.target.value))}
+              aria-label={`Cooked weight of ${dish.name} in grams`}
+            />
+            <span>g</span>
+          </span>
+        </label>
+        {portion && (
+          <p className="portion-result">
+            1 pax = <strong>{portion.gramsPerPax} g</strong>
+            {portion.kcalPerPax != null && (
+              <>
+                {' '}
+                = <strong>{portion.kcalPerPax} kcal</strong>
+              </>
+            )}
+          </p>
+        )}
+        <p className="item-sub">
+          Weigh the finished pot, not the raw kit. Rice or sides that are not in the kit are not in
+          the calorie number.
+        </p>
+      </div>
 
       <div className="group-label">My notes</div>
       <textarea

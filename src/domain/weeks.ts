@@ -122,6 +122,17 @@ export function resetProgress(state: WeeksState, id: string, now = new Date()): 
  * hand back a half-built object, which crashes the app on render and leaves no
  * way to clear the bad value.
  */
+function numberRecord(raw: unknown): Record<string, number> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const out: Record<string, number> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      out[key] = Math.round(value)
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 export function normalizePlan(raw: unknown): WeekPlan {
   const plan = (raw ?? {}) as Partial<WeekPlan>
   if (!Array.isArray(plan.entries)) return emptyPlan()
@@ -134,6 +145,7 @@ export function normalizePlan(raw: unknown): WeekPlan {
     ),
     hiddenItemIds: Array.isArray(plan.hiddenItemIds) ? plan.hiddenItemIds : [],
     checkedKeys: Array.isArray(plan.checkedKeys) ? plan.checkedKeys : [],
+    cookedGrams: numberRecord(plan.cookedGrams),
   }
 }
 
