@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+dist-ssr/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and caches
+logs
+*.log
+npm-debug.log*
+.vite/
+.cache/
+.turbo/
+
+# Editor and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

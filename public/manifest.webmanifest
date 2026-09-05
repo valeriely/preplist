@@ -1,0 +1,16 @@
+{
+  "name": "PrepList",
+  "short_name": "PrepList",
+  "description": "Plan meals and tally a grocery list from Prepped dishes.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4efe6",
+  "theme_color": "#1c2b24",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
