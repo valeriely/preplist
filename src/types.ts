@@ -119,6 +119,11 @@ export interface Contribution {
   quantity: Quantity
 }
 
+export interface GroceryComponent {
+  itemId: string
+  name: string
+}
+
 export interface GroceryLine {
   key: string
   itemId: string
@@ -127,6 +132,8 @@ export interface GroceryLine {
   kind: ItemKind
   quantity: Quantity
   contributions: Contribution[]
+  /** Sauce-pack breakdown so Shop can show what to buy, not just "Sauce". */
+  components?: GroceryComponent[]
 }
 
 export interface DishGroup {

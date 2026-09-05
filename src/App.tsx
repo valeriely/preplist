@@ -50,7 +50,7 @@ export default function App() {
   const [proteins, setProteins] = useState<ProteinTag[]>([])
   const [calories, setCalories] = useState<CalorieBand>('all')
   const [shopView, setShopView] = useState<ShopView>('aisle')
-  const [splitView, setSplitView] = useState<SplitView>('ingredient')
+  const [splitView, setSplitView] = useState<SplitView>('meal')
   const [openCookId, setOpenCookId] = useState<string | null>(null)
   const { resolved, toggle } = useTheme()
 
@@ -70,7 +70,6 @@ export default function App() {
   const grocery = useMemo(() => tallyGrocery(dishes, plan), [plan])
   const aisleGroups = useMemo(() => groceryByAisle(grocery), [grocery])
   const shopDishGroups = useMemo(() => groupByDish(dishes, plan), [plan])
-  const prepDishGroups = useMemo(() => groupByDish(dishes, plan, false), [plan])
   const splits = useMemo(() => splitByIngredient(dishes, plan), [plan])
 
   const itemCount = grocery.length
@@ -214,8 +213,8 @@ export default function App() {
           view={splitView}
           onView={setSplitView}
           groups={splits}
-          dishGroups={prepDishGroups}
           dishes={dishes}
+          entries={plan.entries}
         />
       )}
       {tab === 'cook' && (

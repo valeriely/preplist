@@ -1,5 +1,5 @@
 import { AISLE_LABEL } from '../domain/normalize'
-import { formatQuantity } from '../domain/tally'
+import { componentKey, formatQuantity } from '../domain/tally'
 import type { DishGroup, GroceryLine } from '../types'
 
 export type ShopView = 'aisle' | 'dish'
@@ -52,6 +52,7 @@ export default function ShopPage({
                   key={line.key}
                   line={line}
                   done={checked.has(line.key)}
+                  checkedKeys={checked}
                   showDishes
                   onToggle={onToggleBought}
                   onHide={onHide}
@@ -82,6 +83,7 @@ export default function ShopPage({
                     key={line.key}
                     line={line}
                     done={checked.has(line.key)}
+                    checkedKeys={checked}
                     showDishes={false}
                     onToggle={onToggleBought}
                     onHide={onHide}
@@ -98,51 +100,103 @@ export default function ShopPage({
 function Row({
   line,
   done,
+  checkedKeys,
   showDishes,
   onToggle,
   onHide,
 }: {
   line: GroceryLine
   done: boolean
+  checkedKeys: Set<string>
   showDishes: boolean
   onToggle: (key: string) => void
   onHide: (itemId: string) => void
 }) {
   const hideable = line.kind === 'pantry' || line.kind === 'sauce-pack'
+  const parts = line.kind === 'sauce-pack' ? (line.components ?? []) : []
+  const showQty = line.kind !== 'sauce-pack' || line.quantity.amount != null
+
   return (
-    <label className={`item${done ? ' done' : ''}`}>
-      <input
-        type="checkbox"
-        className="check"
-        checked={done}
-        onChange={() => onToggle(line.key)}
-      />
-      <div className="item-main">
-        <div className="item-name">
-          {line.name} <span className="item-qty">{formatQuantity(line.quantity)}</span>
+    <div className={`item${done ? ' done' : ''}${parts.length > 0 ? ' item-sauce' : ''}`}>
+      <label className="item-row">
+        <input
+          type="checkbox"
+          className="check"
+          checked={done}
+          onChange={() => onToggle(line.key)}
+        />
+        <div className="item-main">
+          <div className="item-name">
+            {line.name}
+            {showQty && (
+              <>
+                {' '}
+                <span className="item-qty">{formatQuantity(line.quantity)}</span>
+              </>
+            )}
+          </div>
+          {showDishes && (
+            <div className="item-sub">
+              {line.contributions
+                .map((c) => `${c.dishName} ${formatQuantity(c.quantity)}`)
+                .join(' · ')}
+            </div>
+          )}
+          {hideable && parts.length === 0 && (
+            <div className="item-actions">
+              <HideButton onHide={() => onHide(line.itemId)} />
+            </div>
+          )}
         </div>
-        {showDishes && (
-          <div className="item-sub">
-            {line.contributions
-              .map((c) => `${c.dishName} ${formatQuantity(c.quantity)}`)
-              .join(' · ')}
-          </div>
-        )}
-        {hideable && (
+      </label>
+
+      {parts.length > 0 && (
+        <div className="sauce-breakdown">
+          <div className="sauce-breakdown-label">Buy these if you are making it</div>
+          {parts.map((part) => {
+            const key = componentKey(part.itemId)
+            const partDone = checkedKeys.has(key)
+            return (
+              <div key={part.itemId} className={`sauce-part${partDone ? ' done' : ''}`}>
+                <label className="sauce-part-row">
+                  <input
+                    type="checkbox"
+                    className="check"
+                    checked={partDone}
+                    onChange={() => onToggle(key)}
+                  />
+                  <span className="sauce-part-name">{part.name}</span>
+                </label>
+                <HideButton onHide={() => onHide(part.itemId)} />
+              </div>
+            )
+          })}
           <div className="item-actions">
-            <button
-              type="button"
-              className="tiny"
-              onClick={(e) => {
-                e.preventDefault()
-                onHide(line.itemId)
-              }}
-            >
-              I already have this
-            </button>
+            <HideButton label="I already have this pack" onHide={() => onHide(line.itemId)} />
           </div>
-        )}
-      </div>
-    </label>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function HideButton({
+  onHide,
+  label = 'I already have this',
+}: {
+  onHide: () => void
+  label?: string
+}) {
+  return (
+    <button
+      type="button"
+      className="tiny"
+      onClick={(e) => {
+        e.preventDefault()
+        onHide()
+      }}
+    >
+      {label}
+    </button>
   )
 }

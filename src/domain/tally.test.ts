@@ -100,7 +100,17 @@ describe('tally + scale', () => {
     expect(thighs?.contributions).toHaveLength(2)
     expect(lines.find((l) => l.itemId === 'onion')?.quantity.amount).toBe(60)
     expect(lines.find((l) => l.itemId === 'yellow-onion')?.quantity.amount).toBe(100)
-    expect(lines.find((l) => l.itemId === 'cashew-butter')).toBeTruthy()
+    const sauces = lines.filter((l) => l.kind === 'sauce-pack')
+    expect(sauces).toHaveLength(2)
+    expect(sauces.find((s) => s.itemId.startsWith('acqua:'))?.quantity.amount).toBe(280)
+    expect(sauces.find((s) => s.itemId.startsWith('aji:'))?.quantity.amount).toBe(100)
+    expect(sauces.find((s) => s.itemId.startsWith('acqua:'))?.components?.map((c) => c.itemId)).toContain(
+      'cashew-butter',
+    )
+    expect(sauces.find((s) => s.itemId.startsWith('aji:'))?.components?.map((c) => c.name)).toContain(
+      'Aji Amarillo',
+    )
+    expect(lines.find((l) => l.itemId === 'cashew-butter')).toBeUndefined()
   })
 
   it('does not merge thigh and breast', () => {
@@ -139,6 +149,10 @@ describe('tally + scale', () => {
     const lines = tallyGrocery([acqua], plan)
     expect(lines.find((l) => l.itemId === 'cashew-butter')).toBeUndefined()
     expect(lines.find((l) => l.itemId === 'chicken-thigh')).toBeTruthy()
+    const sauce = lines.find((l) => l.kind === 'sauce-pack')
+    expect(sauce).toBeTruthy()
+    expect(sauce?.components?.map((c) => c.itemId)).not.toContain('cashew-butter')
+    expect(sauce?.components?.map((c) => c.itemId)).not.toContain('water')
   })
 
   it('groups the same week by dish without merging across dishes', () => {
@@ -161,6 +175,12 @@ describe('tally + scale', () => {
     expect(acquaChicken?.quantity.amount).toBe(400)
     expect(ajiChicken?.quantity.amount).toBe(300)
     expect(groups[0].sauces[0].quantity.amount).toBe(280)
+    expect(groups[0].lines.find((l) => l.kind === 'sauce-pack')?.components?.map((c) => c.name)).toContain(
+      'Cashew butter',
+    )
+    expect(groups[1].lines.find((l) => l.kind === 'sauce-pack')?.components?.map((c) => c.name)).toContain(
+      'Aji Amarillo',
+    )
   })
 
   it('splits a tallied item back into per-dish allocations', () => {

@@ -82,6 +82,33 @@ function lineKey(itemId: string, unit: string | null, kind: string): string {
   return `${kind}:${itemId}:${unit ?? 'none'}`
 }
 
+export function componentKey(itemId: string): string {
+  return lineKey(itemId, null, 'pantry')
+}
+
+function saucePackLine(dish: Dish, hidden: Set<string>): GroceryLine[] {
+  const lines: GroceryLine[] = []
+  for (const sauce of dish.sauces) {
+    const itemId = `${dish.id}:${sauce.id}`
+    if (hidden.has(itemId)) continue
+    lines.push({
+      key: lineKey(itemId, sauce.quantity.unit, 'sauce-pack'),
+      itemId,
+      name: sauce.label,
+      aisle: 'pantry',
+      kind: 'sauce-pack',
+      quantity: { ...sauce.quantity },
+      contributions: [{ dishId: dish.id, dishName: dish.name, quantity: sauce.quantity }],
+      components: sauce.components.filter((c) => !hidden.has(c.itemId)),
+    })
+  }
+  return lines
+}
+
+function isSauceIngredient(ing: { kind: string; sauceId?: string }): boolean {
+  return ing.kind === 'sauce-pack' || ing.sauceId != null
+}
+
 export function tallyGrocery(dishes: Dish[], plan: WeekPlan): GroceryLine[] {
   const hidden = new Set(plan.hiddenItemIds)
   const byDish = new Map(dishes.map((d) => [d.id, d]))
@@ -91,8 +118,12 @@ export function tallyGrocery(dishes: Dish[], plan: WeekPlan): GroceryLine[] {
     const dish = byDish.get(entry.dishId)
     if (!dish) continue
     const resolved = resolveDish(dish, entry)
+    for (const line of saucePackLine(resolved, hidden)) {
+      map.set(line.key, line)
+    }
     for (const ing of resolved.ingredients) {
       if (hidden.has(ing.itemId)) continue
+      if (isSauceIngredient(ing)) continue
       const key = lineKey(ing.itemId, ing.quantity.unit, ing.kind)
       const contribution: Contribution = {
         dishId: dish.id,
@@ -148,18 +179,20 @@ export function groupByDish(dishes: Dish[], plan: WeekPlan, hidePantry = true): 
     const protein = dish.proteinOptions.find(
       (p) => p.id === (entry.proteinId ?? dish.defaultProteinId),
     )
-    const lines: GroceryLine[] = resolved.ingredients
-      .filter((ing) => !hidden.has(ing.itemId))
-      .map((ing) => ({
-        key: `${dish.id}:${ing.itemId}:${ing.quantity.unit ?? 'none'}:${ing.kind}`,
-        itemId: ing.itemId,
-        name: ing.name,
-        aisle: ing.aisle,
-        kind: ing.kind,
-        quantity: ing.quantity,
-        contributions: [{ dishId: dish.id, dishName: dish.name, quantity: ing.quantity }],
-      }))
-      .sort((a, b) => {
+    const lines: GroceryLine[] = [
+      ...resolved.ingredients
+        .filter((ing) => !hidden.has(ing.itemId) && !isSauceIngredient(ing))
+        .map((ing) => ({
+          key: `${dish.id}:${ing.itemId}:${ing.quantity.unit ?? 'none'}:${ing.kind}`,
+          itemId: ing.itemId,
+          name: ing.name,
+          aisle: ing.aisle,
+          kind: ing.kind,
+          quantity: ing.quantity,
+          contributions: [{ dishId: dish.id, dishName: dish.name, quantity: ing.quantity }],
+        })),
+      ...saucePackLine(resolved, hidden),
+    ].sort((a, b) => {
         const order = { fresh: 0, 'sauce-pack': 1, pantry: 2 }
         if (a.kind !== b.kind) return order[a.kind] - order[b.kind]
         const aisle = AISLE_ORDER.indexOf(a.aisle) - AISLE_ORDER.indexOf(b.aisle)

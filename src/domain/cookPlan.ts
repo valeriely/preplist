@@ -1,4 +1,4 @@
-import type { CookStep, Dish, DishIngredient, SaucePack } from '../types'
+import type { CookStep, Dish, DishIngredient, Quantity, SaucePack } from '../types'
 import { formatQuantity, roundQty } from './tally'
 
 /**
@@ -86,6 +86,8 @@ interface PackUse {
   pack: SaucePack
   /** Text for referring to the amount used in this step. */
   ref: string
+  /** How much of the pack this step actually spends. */
+  used: Quantity
 }
 
 export interface SaucePlan {
@@ -104,6 +106,26 @@ function fullRef(pack: SaucePack): string {
   return `the ${packName(pack)}${qty}`
 }
 
+function splitAmounts(pack: SaucePack): { marinade: Quantity; finish: Quantity } {
+  const total = pack.quantity.amount
+  const unit = pack.quantity.unit
+  if (total == null) {
+    return {
+      marinade: { amount: null, unit, raw: 'about a third' },
+      finish: { amount: null, unit, raw: 'the rest' },
+    }
+  }
+  // Kitchen-friendly numbers: nobody measures 43.3g out of a sachet.
+  const raw = total / 3
+  const part = total >= 45 ? Math.round(raw / 5) * 5 : roundQty(raw)
+  const rest = roundQty(total - part)
+  const marinade: Quantity = { amount: part, unit, raw: '' }
+  marinade.raw = formatQuantity(marinade)
+  const finish: Quantity = { amount: rest, unit, raw: '' }
+  finish.raw = formatQuantity(finish)
+  return { marinade, finish }
+}
+
 function splitRefs(pack: SaucePack): { marinade: string; finish: string } {
   const total = pack.quantity.amount
   const unit = pack.quantity.unit
@@ -113,14 +135,15 @@ function splitRefs(pack: SaucePack): { marinade: string; finish: string } {
       finish: `the rest of the ${packName(pack)}`,
     }
   }
-  // Kitchen-friendly numbers: nobody measures 43.3g out of a sachet.
-  const raw = total / 3
-  const part = total >= 45 ? Math.round(raw / 5) * 5 : roundQty(raw)
-  const rest = roundQty(total - part)
+  const { marinade, finish } = splitAmounts(pack)
   return {
-    marinade: `about ${part}${unit} of the ${formatQuantity(pack.quantity)} ${packName(pack)}`,
-    finish: `the remaining ~${rest}${unit} of ${packName(pack)}`,
+    marinade: `about ${marinade.amount}${unit} of the ${formatQuantity(pack.quantity)} ${packName(pack)}`,
+    finish: `the remaining ~${finish.amount}${unit} of ${packName(pack)}`,
   }
+}
+
+function packUse(pack: SaucePack, ref: string, used: Quantity = pack.quantity): PackUse {
+  return { pack, ref, used: { ...used } }
 }
 
 /**
@@ -140,10 +163,8 @@ export function saucePlan(dish: Dish, wantsMarinade = true): SaucePlan {
     const finishPack = packs.find((p) => p !== marinadePack) ?? null
     return {
       marinade:
-        wantsMarinade && marinadePack
-          ? { pack: marinadePack, ref: fullRef(marinadePack) }
-          : null,
-      finish: finishPack ? { pack: finishPack, ref: fullRef(finishPack) } : null,
+        wantsMarinade && marinadePack ? packUse(marinadePack, fullRef(marinadePack)) : null,
+      finish: finishPack ? packUse(finishPack, fullRef(finishPack)) : null,
       split: false,
     }
   }
@@ -153,19 +174,31 @@ export function saucePlan(dish: Dish, wantsMarinade = true): SaucePlan {
 
   if (kind === 'marinade') {
     // Everything goes on the protein; nothing is left to pour in later.
-    return { marinade: { pack, ref: fullRef(pack) }, finish: null, split: false }
+    return { marinade: packUse(pack, fullRef(pack)), finish: null, split: false }
   }
   if (kind === 'sauce' || !wantsMarinade) {
     // A stir-fry / braising sauce is added while cooking, not used to marinate.
-    return { marinade: null, finish: { pack, ref: fullRef(pack) }, split: false }
+    return { marinade: null, finish: packUse(pack, fullRef(pack)), split: false }
   }
 
   const refs = splitRefs(pack)
+  const amounts = splitAmounts(pack)
   return {
-    marinade: { pack, ref: refs.marinade },
-    finish: { pack, ref: refs.finish },
+    marinade: packUse(pack, refs.marinade, amounts.marinade),
+    finish: packUse(pack, refs.finish, amounts.finish),
     split: true,
   }
+}
+
+/** Techniques that flavour in the pan or pot, not in a bag beforehand. */
+export function wantsMarinadeFor(dish: Dish): boolean {
+  const archetype = archetypeFor(dish)
+  return (
+    archetype !== 'donburi-simmer' &&
+    archetype !== 'soup' &&
+    archetype !== 'noodle-pasta' &&
+    archetype !== 'saute-veg'
+  )
 }
 
 /* ------------------------------------------------------------------ *
@@ -1163,13 +1196,7 @@ function sauteVeg(ctx: Ctx) {
 
 export function cookSteps(dish: Dish): CookStep[] {
   const archetype = archetypeFor(dish)
-  const wantsMarinade = !(
-    archetype === 'donburi-simmer' ||
-    archetype === 'soup' ||
-    archetype === 'noodle-pasta' ||
-    archetype === 'saute-veg'
-  )
-  const plan = saucePlan(dish, wantsMarinade)
+  const plan = saucePlan(dish, wantsMarinadeFor(dish))
   const roles = rolesFor(dish)
   roles.marinade = plan.marinade?.pack ?? null
   roles.sauce = plan.finish?.pack ?? null
